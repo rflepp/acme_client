@@ -1,0 +1,8 @@
+#!/bin/bash
+DIRECTORY=$(dirname "$0")
+echo "Changing to ${DIRECTORY}"
+cd  "$DIRECTORY" || exit 1
+
+echo "Run your project here."
+
+python3 main.py "$@"

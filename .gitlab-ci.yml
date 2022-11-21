@@ -1,0 +1,101 @@
+stages:
+  - test
+  - evaluate
+
+variables:
+  DOCKER_DRIVER: overlay2
+  PYTHONUNBUFFERED: 1
+  GIT_DEPTH: 1
+
+.test_template: &test_definition
+  stage: test
+  before_script:
+    - "echo The project directory is: $CI_PROJECT_DIR"
+    - "mkdir -p $CI_PROJECT_DIR/.test-out"
+    - "ln -s $CI_PROJECT_DIR/project/ /project"
+    - "ln -s $CI_PROJECT_DIR/scripts/ /scripts"
+    - "find /scripts -type f -iname \"*.sh\" -exec chmod +x {} \\;"
+    - "find /project -type f -iname \"*.sh\" -exec chmod +x {} \\;"
+    - "chmod +x /project/compile /project/run"
+    - "/scripts/docker-compile.sh"
+    - "printf '%s\t%s\n' $(hostname -I) 'student-project' >> /etc/hosts"
+    - "echo 'Copying /etc/hosts file for service containers'"
+    - "cat /etc/hosts"
+    - "cp /etc/hosts $CI_PROJECT_DIR"
+    - "nc -z pebble 20000"
+
+  script:
+    - "/scripts/docker-run.sh \"http://pebble:6000\""
+
+  artifacts:
+    paths:
+      - ".test-out"
+
+  image: registry.inf.ethz.ch/netsec-courses-2020/studentdocker:latest
+
+
+http-single-domain:
+  <<: *test_definition
+  services:
+    - name: registry.inf.ethz.ch/netsec-courses-2020/testing:latest
+      alias: pebble
+      command: ["http01", "--test-name", "http-single-domain", "--dir", "https://pebble:14000/dir", "--client-hostname", "student-project", "--domain", "example.com"]
+
+http-multi-domain:
+  <<: *test_definition
+  services:
+    - name: registry.inf.ethz.ch/netsec-courses-2020/testing:latest
+      alias: pebble
+      command: ["http01", "--test-name", "http-multi-domain", "--dir", "https://pebble:14000/dir", "--client-hostname", "student-project", "--domain", "example.com", "--domain", "test.example.com", ]
+
+dns-single-domain:
+  <<: *test_definition
+  services:
+    - name: registry.inf.ethz.ch/netsec-courses-2020/testing:latest
+      alias: pebble
+      command: ["dns01", "--test-name", "dns-single-domain", "--dir", "https://pebble:14000/dir", "--client-hostname", "student-project", "--domain", "example.com"]
+
+dns-multi-domain:
+  <<: *test_definition
+  services:
+    - name: registry.inf.ethz.ch/netsec-courses-2020/testing:latest
+      alias: pebble
+      command: ["dns01", "--test-name", "dns-multi-domain", "--dir", "https://pebble:14000/dir", "--client-hostname", "student-project", "--domain", "example.com", "--domain", "test.example.com"]
+
+dns-wildcard-domain:
+  <<: *test_definition
+  services:
+    - name: registry.inf.ethz.ch/netsec-courses-2020/testing:latest
+      alias: pebble
+      command: ["dns01", "--test-name", "dns-wildcard-domain", "--dir", "https://pebble:14000/dir", "--client-hostname", "student-project", "--domain", "example.com", "--domain", "*.example.com"]
+
+http-revocation:
+  <<: *test_definition
+  services:
+    - name: registry.inf.ethz.ch/netsec-courses-2020/testing:latest
+      alias: pebble
+      command: ["http01", "--test-name", "http-revocation", "--dir", "https://pebble:14000/dir", "--client-hostname", "student-project", "--domain", "example.com", "--revoke"]
+
+dns-revocation:
+  <<: *test_definition
+  services:
+    - name: registry.inf.ethz.ch/netsec-courses-2020/testing:latest
+      alias: pebble
+      command: ["dns01", "--test-name", "dns-revocation", "--dir", "https://pebble:14000/dir", "--client-hostname", "student-project", "--domain", "example.com", "--revoke"]
+
+invalid-certificate:
+  <<: *test_definition
+  services:
+    - name: registry.inf.ethz.ch/netsec-courses-2020/testing:latest
+      alias: pebble
+      command: ["http01", "--test-name", "invalid-certificate", "--dir", "https://pebble:14000/dir", "--client-hostname", "student-project", "--domain", "example.com", "--invalid-cert"]
+
+
+give-score:
+  stage: evaluate
+  image: registry.inf.ethz.ch/netsec-courses-2020/evaluator:latest
+  script:
+    - "evaluator"
+  artifacts:
+    paths:
+      - "test-results"

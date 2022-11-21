@@ -1,0 +1,7 @@
+#!/bin/bash
+
+echo "Compile your project here"
+pip install cryptography
+pip install dnslib
+pip install requests
+pip install flask
